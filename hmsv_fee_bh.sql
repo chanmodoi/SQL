@@ -114,7 +114,7 @@ CREATE OR REPLACE VIEW hmsv_fee_bh AS
             pcms_order_line.hfe_request,
             'N'::character varying(1) AS hfe_hastranfer,
             pcms_order.pcmso_performdate AS hfe_pdate,
-            pcms_order.pcmso_doctor AS hfe_doctor,
+            pcms_order.pcmso_practitioner AS hfe_doctor,
             0 AS hfe_typexe,
                 CASE
                     WHEN substr(pcms_order_line.hfe_group::text, 1, 2) <> 'B1'::text THEN pcms_order_line.pcmsol_note
