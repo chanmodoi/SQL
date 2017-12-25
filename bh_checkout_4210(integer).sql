@@ -986,7 +986,10 @@ SELECT
     THEN ROUND(SUM ((round(hpol_issueqty ,2)*pmc_unitprice*pmi_insdisrate/100) * (100-tmpPercent)/100),2)
     ELSE ROUND(SUM(round(hpol_issueqty ,2) *pmc_unitprice*(100-tmpPercent)/100),2)
   END        AS t_bncct,
-  hpol_usage AS lieu_dung,
+  CASE
+    WHEN hpol_usage='' OR hpol_usage IS NULL THEN 'Theo chỉ định của bác sỹ'
+    ELSE hpol_usage
+  END AS lieu_dung,
   1          AS ma_pttt,
   0 as t_ngoaids
 FROM hms_pharmacyorder
@@ -1175,7 +1178,10 @@ SELECT
     THEN 100
     ELSE CAST(ss_desc AS INTEGER)
   END                   AS tyle_tt,
-  ROUND(tbl1.hfe_inspaid, 2) AS thanhtien,
+  ROUND(
+  	(case when tbl1.hfe_unpaidqty >0 then  tbl1.hfe_qty - tbl1.hfe_unpaidqty else tbl1.hfe_qty END)*
+  	tbl1.hfe_insprice*
+  	(CASE WHEN hfe_type='D' THEN 100 ELSE CAST(ss_desc AS INTEGER) end)/100 , 2) AS thanhtien,
   0 as t_trantt,
   tmpPercent as muc_huong,
   sd_insuranceid             AS deptid,
