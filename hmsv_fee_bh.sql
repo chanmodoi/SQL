@@ -65,7 +65,7 @@ CREATE OR REPLACE VIEW hmsv_fee_bh AS
             hms_exam.he_examtype AS hfe_itemid,
             1 AS hfe_qty,
             hms_exam.hfe_unitprice,
-            hms_exam.hfe_cost - hms_exam.hfe_difcost AS hfe_insprice,
+            hms_exam.hfe_insprice,
             hms_exam.hfe_cost,
             hms_exam.hfe_inspaid,
             hms_exam.hfe_difcost,
