@@ -209,7 +209,7 @@ UNION ALL
      LEFT JOIN hms_bedlist ON hms_bedlist.hbl_deptid::text = hms_bed.hb_deptid::text AND hms_bedlist.hbl_roomid = hms_bed.hb_roomid AND hms_bedlist.hbl_id = hms_bed.hb_bedid
   WHERE hms_bed.hb_treatqty > 0::numeric AND (hms_bed.hb_dynprice::text <> 'Y'::text OR hms_bed.hb_dynprice IS NULL) AND (hms_bed.hfe_status::text = ANY (ARRAY['O'::character varying::text, 'C'::character varying::text, 'P'::character varying::text]))
 UNION ALL
-  SELECT hms_bed_items.hbi_patientno AS hfe_patientno,
+ SELECT hms_bed_items.hbi_patientno AS hfe_patientno,
     hms_bed_items.hbi_docno AS hfe_docno,
     hms_bed_items.hbi_deptid AS hfe_deptid,
     hms_bed_items.hbi_refidx AS hfe_refidx,
@@ -249,10 +249,10 @@ UNION ALL
     hms_bed_items.hfe_unpaidqty
    FROM hms_bed_items
      LEFT JOIN hms_dynbedlist ON hms_dynbedlist.hdbl_deptid::text = hms_bed_items.hbi_deptid::text AND hms_dynbedlist.hdbl_idx = hms_bed_items.hbi_priceid
-     left join hms_bed on  hms_bed.hb_docno=hms_bed_items.hbi_docno and hms_bed.hb_refidx=hms_bed_items.hbi_refidx
+     LEFT JOIN hms_bed ON hms_bed.hb_docno = hms_bed_items.hbi_docno AND hms_bed.hb_idx = hms_bed_items.hbi_refidx
   WHERE (hms_bed_items.hfe_status::text = ANY (ARRAY['O'::character varying::text, 'C'::character varying::text, 'P'::character varying::text])) AND hms_bed_items.hfe_unitprice > 1::numeric
 UNION ALL
-SELECT hms_pharmacyorder.hpo_patientno AS hfe_patientno,
+ SELECT hms_pharmacyorder.hpo_patientno AS hfe_patientno,
     hms_pharmacyorder.hpo_docno AS hfe_docno,
     hms_pharmacyorder.hpo_deptid AS hfe_deptid,
     hms_pharmacyorder.hpo_refidx AS hfe_refidx,
@@ -283,18 +283,18 @@ SELECT hms_pharmacyorder.hpo_patientno AS hfe_patientno,
     hms_pharmacyorder_line.hfe_request,
     'N'::character varying(1) AS hfe_hastranfer,
     hms_pharmacyorder.hpo_orderdate AS hfe_pdate,
-    case 
-    	when hms_pharmacyorder.hpo_doctor<>'' and  hms_pharmacyorder.hpo_doctor is not null then hms_pharmacyorder.hpo_doctor
-    	when pms_stocktransfer.pmst_senderby<>'' and  pms_stocktransfer.pmst_senderby is not null then pms_stocktransfer.pmst_senderby
-    	else ''::character varying(15)
-    end AS hfe_doctor,
+        CASE
+            WHEN hms_pharmacyorder.hpo_doctor::text <> ''::text AND hms_pharmacyorder.hpo_doctor IS NOT NULL THEN hms_pharmacyorder.hpo_doctor
+            WHEN pms_stocktransfer.pmst_senderby::text <> ''::text AND pms_stocktransfer.pmst_senderby IS NOT NULL THEN pms_stocktransfer.pmst_senderby
+            ELSE ''::character varying(15)
+        END AS hfe_doctor,
     pms_items.pmi_insuranceid AS hfe_regcode,
     1 AS hfe_ratio,
     0 AS hfe_unpaidqty
    FROM hms_pharmacyorder
      LEFT JOIN hms_pharmacyorder_line ON hms_pharmacyorder.hpo_orderid = hms_pharmacyorder_line.hpol_orderid
      LEFT JOIN pms_items ON hms_pharmacyorder_line.hpol_itemid::text = pms_items.pmi_id::text
-     LEFT JOIN pms_stocktransfer on hms_pharmacyorder.hpo_sheetidx=pms_stocktransfer.pmst_id
+     LEFT JOIN pms_stocktransfer ON hms_pharmacyorder.hpo_sheetidx::text = pms_stocktransfer.pmst_id::text
   WHERE (hms_pharmacyorder.hpo_status::text <> ALL (ARRAY['O'::text, 'C'::text])) AND hms_pharmacyorder_line.hpol_issueqty > 0::numeric AND hms_pharmacyorder.hpo_type::text <> 'M'::text AND hms_pharmacyorder_line.hpol_payment <> 'S'::bpchar AND (hms_pharmacyorder_line.hfe_status::text = ANY (ARRAY['O'::character varying::text, 'C'::character varying::text, 'P'::character varying::text]))
 UNION ALL
  SELECT hms_other_fee.hfe_patientno,
