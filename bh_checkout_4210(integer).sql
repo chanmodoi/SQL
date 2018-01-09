@@ -27,8 +27,8 @@ $BODY$
       tmp_bhtt2 NUMERIC(15,2);
       tmp_bncct NUMERIC(15,2);
       tmp_bncct1 NUMERIC(15,2);
-tmp_bncct2 NUMERIC(15,2);
-tmp_nguon_khac NUMERIC(15,2);
+	  tmp_bncct2 NUMERIC(15,2);
+      tmp_nguon_khac NUMERIC(15,2);
       tmp_tong_chi NUMERIC(15,2);
       v_insline    VARCHAR(1);
       v_insoffline INTEGER;
@@ -38,7 +38,7 @@ tmp_nguon_khac NUMERIC(15,2);
       v_ngayylenh VARCHAR(20);
       v_ngay_ra    VARCHAR(20);
       v_ngay_vao VARCHAR(20);
-      v_Card_RegDate VARCHAR(20);
+      v_Card_RegDate VARCHAR(50);
      v_Ngaydieutri integer;
 	tmp_t_ndx NUMERIC(15,2);
       tmp_t_ndxTNT NUMERIC(15,2);
@@ -485,25 +485,24 @@ tmpInt := 0;
       ELSE hms_getaddress(hp_provid, hp_distid, hp_villid)
     END AS dia_chi,
     CASE
-	WHEN hd_hasxcard='Y'
-	THEN  SUBSTR(hd_cardno,1,15)||';'||SUBSTR(hd_xcardno,1,15)
+	WHEN hd_hasxcard='Y'  
+	THEN  SUBSTR(hd_cardno,1,15)||';'||SUBSTR(hms_card2.hc_cardno,1,15)
       ELSE  SUBSTR(hd_cardno,1,15)
     END                            AS ma_the,
     CASE 
-    WHEN hd_hasxcard='Y' and SUBSTR(hd_xcardno,16,5) <> SUBSTR(hc_cardno,16,5)
-	then SUBSTR(hc_cardno,16,5)||';'||SUBSTR(hd_xcardno,16,5)
-	else SUBSTR(hc_cardno,16,5)    END AS ma_dkbd,
+    WHEN hd_hasxcard='Y' and SUBSTR(hd_xcardno,16,5) <> SUBSTR(hms_card2.hc_cardno,16,5)
+	then SUBSTR(hms_card.hc_cardno,16,5)||';'||SUBSTR(hms_card2.hc_cardno,16,5)
+	else SUBSTR(hms_card.hc_cardno,16,5)    END AS ma_dkbd,
     CASE 
 	when hd_hasxcard='Y' 
-	then TO_CHAR(hc_regdate,'YYYYMMDD')||';'||xCard.regdate
-	ELSE TO_CHAR(hc_regdate,'YYYYMMDD') 
+	then TO_CHAR(hms_card.hc_regdate,'YYYYMMDD')||';'||TO_CHAR(hms_card2.hc_regdate,'YYYYMMDD')
+	ELSE TO_CHAR(hms_card.hc_regdate,'YYYYMMDD') 
 	END AS gt_the_tu,
     CASE 
 	when hd_hasxcard='Y' 
-	THEN TO_CHAR(hc_expdate,'YYYYMMDD')||';'||xCard.expdate
-	ELSE TO_CHAR(hc_expdate,'YYYYMMDD') 
+	THEN TO_CHAR(hms_card.hc_expdate,'YYYYMMDD')||';'||TO_CHAR(hms_card2.hc_expdate,'YYYYMMDD')
+	ELSE TO_CHAR(hms_card.hc_expdate,'YYYYMMDD') 
 	END AS gt_the_den,
-
     CASE 
 	WHEN hd_over5year ='Y'
 	THEN TO_CHAR(hd_datediscountall,'YYYYMMDD')
@@ -701,6 +700,9 @@ tmpInt := 0;
   ON ( hd_docno =ha_docno )
   LEFT JOIN hms_other_diagnostic
   ON ( hod_docno=hd_docno and hod_patientno= hd_patientno)
+  left join (select hms_card.hc_cardno, hms_card.hc_regdate, hms_card.hc_expdate, hms_xcard.hxc_docno
+  				from hms_xcard join hms_card on hms_xcard.hxc_cardidx=hms_card.hc_idx) as hms_card2
+  				on hms_card2.hxc_docno=hd_docno
   GROUP BY ma_bn,
     ho_ten,
     ngay_sinh,
@@ -744,6 +746,7 @@ tmpInt := 0;
 	  hc_discount,
 	hod_diagnostics
  LOOP
+
  tmpPercent:= tmpRec.muc_huong;
  v_benhkem= tmpRec.ma_benhkhac;
  t_ly_do_vao_vien := tmpRec.ma_lydo_vvien;
@@ -758,15 +761,20 @@ tmpInt := 0;
    v_ngay_ra:= tmpRec.ngay_ra;
    v_ngay_vao:=tmpRec.ngay_vao;
    v_Card_RegDate:= tmpRec.gt_the_tu;
+   if (substring(tmpRec.gt_the_tu,10,8)<substring(tmpRec.gt_the_tu,1,8))then
+   		v_Card_RegDate=substring(tmpRec.gt_the_tu,10,8);
+   else v_Card_RegDate=substring(tmpRec.gt_the_tu,1,8);
+   end if;
+   
    v_Ngaydieutri:= tmpRec.so_ngay_dtri;
-   raise notice '%, %,%',to_date(v_Card_RegDate,'YYYYMMDD'),to_date(v_ngay_vao,'YYYYMMDDHH24MI'),to_date(v_ngay_ra,'YYYYMMDDHH24MI');
+   --raise notice '%, %,%',to_date(v_Card_RegDate,'YYYYMMDD'),to_date(v_ngay_vao,'YYYYMMDDHH24MI'),to_date(v_ngay_ra,'YYYYMMDDHH24MI');
    IF(to_date(v_Card_RegDate,'YYYYMMDD') between  to_date(v_ngay_vao,'YYYYMMDDHH24MI') and  to_date(v_ngay_ra,'YYYYMMDDHH24MI')) THEN
 	v_ngay_vao:=v_Card_RegDate||'0000';
 	v_Ngaydieutri:= to_date(v_ngay_ra,'YYYYMMDDHH24MI')-to_date(v_Card_RegDate,'YYYYMMDD') ;
 	raise notice 'vao';
 	
    END IF;
-   
+   --raise notice '%',tmpRec;
 
   INSERT
   INTO bh_thongtinchitiet_tonghop
@@ -930,7 +938,7 @@ SELECT
   case WHEN substring(hfe_group,1,2) =('A2')
     OR pmsi_contractlist_uid      =0 then NULL
     else 
- coalesce(pcs_contractor_id,'')||';'||coalesce(pmc_package,'')||';'||coalesce(pmc_group,'') end as tt_thau,
+ coalesce(pcs_contractor_name,'')||';'||coalesce(pmc_package,'')||';'||coalesce(pmc_group,'') end as tt_thau,
   case when hfe_discount >0 then 1 else 2 end as pham_vi,
   round(SUM(round(hpol_issueqty,2)),2) AS qty,
   CASE
@@ -951,10 +959,13 @@ SELECT
     THEN SUM(ROUND(hpol_issueqty*hfe_insprice, 2))
     ELSE SUM(ROUND(round(hpol_issueqty,2) *pmc_unitprice, 2))
   END            AS amout,
-  tmpPercent as muc_huong,
-  sd_insuranceid AS deptid,
-  (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor)
-  ) AS doctor,
+  hms_pharmacyorder_line.hfe_disrate as muc_huong,
+  sd_insuranceid AS deptid, 
+  case
+  	when (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor)) is null then '('||trim(hpo_doctor)||')' 
+  	when trim((SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor)))='' then '('||trim(hpo_doctor)||')'
+  	else (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor))
+  end AS doctor,
   CASE
     WHEN hd_suggestion <>'A'
     THEN hd_icd
@@ -967,25 +978,11 @@ SELECT
   hpol_itemid                              AS ma_thuoc_cs,
   CASE
     WHEN pmi_insdisrate >0 
-    THEN ROUND(SUM ((round(hpol_issueqty,2) *pmc_unitprice*(100-pmi_insdisrate)/100)),2)
+    THEN ROUND(SUM ((round(hpol_issueqty,2) *pmc_unitprice*(100-hms_pharmacyorder_line.hfe_disrate)/100)),2)
     ELSE 0
   END AS t_bntt,
-  CASE
-    WHEN substring(hfe_group,1,2) =('A2')
-    OR pmsi_contractlist_uid      =0
-    THEN ROUND(SUM(round(hpol_issueqty ,2) *hfe_insprice*tmpPercent/100),2)
-    WHEN pmi_insdisrate >0
-    THEN ROUND(SUM ((round(hpol_issueqty ,2)*pmc_unitprice*pmi_insdisrate/100) * tmpPercent/100),2)
-    ELSE ROUND(SUM(round(hpol_issueqty ,2) *pmc_unitprice*tmpPercent/100),2)
-  END        AS t_bhtt,
-  CASE
-    WHEN substring(hfe_group,1,2) =('A2')
-    OR pmsi_contractlist_uid      =0
-    THEN ROUND(SUM(round(hpol_issueqty ,2) *hfe_insprice*(100-tmpPercent)/100),2)
-    WHEN pmi_insdisrate >0
-    THEN ROUND(SUM ((round(hpol_issueqty ,2)*pmc_unitprice*pmi_insdisrate/100) * (100-tmpPercent)/100),2)
-    ELSE ROUND(SUM(round(hpol_issueqty ,2) *pmc_unitprice*(100-tmpPercent)/100),2)
-  END        AS t_bncct,
+  ROUND(hpol_issueqty*pmc_unitprice*hms_pharmacyorder_line.hfe_disrate/100,2) as t_bhtt,
+  ROUND(hpol_issueqty*pmc_unitprice*(100-hms_pharmacyorder_line.hfe_disrate)/100,2) as t_bncct,
   CASE
     WHEN hpol_usage='' OR hpol_usage IS NULL THEN 'Theo chỉ định của bác sỹ'
     ELSE hpol_usage
@@ -1042,7 +1039,9 @@ GROUP BY hpo_docno,
   pbl_id,
   pbl_name,
   pmi_name,
-  pmsi_contractlist_uid,pmc_quyetdinh,pmc_package,pmc_group,hfe_discount,pcs_contractor_id
+  pmsi_contractlist_uid,pmc_quyetdinh,pmc_package,pmc_group,hfe_discount,pcs_contractor_id,
+  hms_pharmacyorder_line.hfe_disrate,
+  hpol_issueqty
 ORDER BY orderdate,
   hpo_deptid,
   ma_nhom,
@@ -1139,7 +1138,7 @@ SELECT
     ELSE hfe_itemid
   END  AS madichvu,
   NULL AS mavattu,
-  CASE
+  case  	
     WHEN substring(tbl1.hfe_group,1,2) IN ('A9','A4')
     THEN '10'
     WHEN substring(tbl1.hfe_group,1,2)='B1'
@@ -1159,7 +1158,8 @@ SELECT
     WHEN tbl1.hfe_group='C0000'
     OR hfe_type   ='B'
     THEN '15'
-    WHEN tbl1.hfe_hastranfer='M' then '7'
+    WHEN tbl1.hfe_hastranfer='M' then '7'    
+    when (hfl_regcode IN ('11.1900','05.1900','04.1900','14.1900','10.1900','03.1900','02.1900','07.1900','13.1900','17.1900','16.1900','15.1900','06.1900','12.1900','08.1900','11.1896','05.1896','04.1896','14.1896','10.1896','03.1896','02.1896','07.1896','13.1896','17.1896','16.1896','15.1896','06.1896','12.1896','08.1896')) then '13'
     ELSE NULL
   END      AS manhom,
   NULL as goi_vtyt,
@@ -1177,16 +1177,18 @@ SELECT
     WHEN hfe_type='D'
     THEN 100
     ELSE CAST(ss_desc AS INTEGER)
-  END                   AS tyle_tt,
+  END                   AS tyle_tt,  
   ROUND(
   	(case when tbl1.hfe_unpaidqty >0 then  tbl1.hfe_qty - tbl1.hfe_unpaidqty else tbl1.hfe_qty END)*
-  	tbl1.hfe_insprice*
-  	(CASE WHEN hfe_type='D' THEN 100 ELSE CAST(ss_desc AS INTEGER) end)/100 , 2) AS thanhtien,
+  	tbl1.hfe_insprice , 2) AS thanhtien,
   0 as t_trantt,
-  tmpPercent as muc_huong,
+  tbl1.hfe_disrate as muc_huong,
   sd_insuranceid             AS deptid,
-  (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hfe_doctor)
-  ) AS bacsychidinh,
+  case
+  	when (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hfe_doctor)) is null then '('||trim(hfe_doctor)||')' 
+  	when trim((SELECT su_certificate FROM sys_user WHERE su_userid =trim(hfe_doctor)))='' then '('||trim(hfe_doctor)||')'
+  	else (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hfe_doctor))
+  end AS bacsychidinh,
   CASE
     WHEN hd_suggestion <>'A'
     THEN hd_icd
@@ -1262,7 +1264,8 @@ GROUP BY hfe_type,
   hfl_insuranceid,
    tbl1.hfe_inspaid,
   hfl_regcode,  ss_desc,tbl1.hfe_ratio,
-  tbl1.hfe_discount,tbl1.hfe_unpaidqty
+  tbl1.hfe_discount,tbl1.hfe_unpaidqty,
+  tbl1.hfe_disrate
 ORDER BY hfe_deptid,
   manhom,
   hfe_entrydate 
@@ -1338,6 +1341,7 @@ LOOP
 
   ELSE IF(tmpRec.manhom                ='15' AND tmpRec.soluong <0 ) THEN
   v_ngayylenh                  :=tmpRec.ngay_yl;
+
   FOR i IN 1..CAST(tmpRec.soluong AS INTEGER)
   LOOP
     tmpInt      := tmpInt+1;
@@ -1346,6 +1350,8 @@ LOOP
       IF( TO_DATE(v_ngayylenh,'YYYYMMDDHH24MI') > TO_DATE(v_ngay_ra,'YYYYMMDDHH24MI') ) THEN
         v_ngayylenh                            :=v_ngay_ra;
       END IF;
+
+
 END IF;
 INSERT
 INTO bh_bang_ctdv
@@ -1415,7 +1421,13 @@ INTO bh_bang_ctdv
     tmpRec.t_trantt );
   END LOOP;
 ELSE
-	
+	--H	
+  if((tmpRec.manhom='15' and (tmpRec.tyle_tt=50 or tmpRec.tyle_tt=30))
+			or (tmpRec.manhom='13' and (tmpRec.tyle_tt=30 or tmpRec.tyle_tt=10))
+			or (tmpRec.manhom='8' and (tmpRec.tyle_tt=50 or tmpRec.tyle_tt=80))) then
+				tmpRec.thanhtien:=tmpRec.thanhtien*tmpRec.tyle_tt/100;
+  end if;
+
   tmpInt := tmpInt+1;
   INSERT
   INTO bh_bang_ctdv
@@ -1501,7 +1513,10 @@ SELECT
   END AS mavattu,
   '10' as manhom,
   '' as goi_vtyt,
-  to_char(pcs_publishdate,'YYYY')||'.'||pmc_package||'.'||pcs_contractor_id as     tt_thau,
+  case 
+  	when pcs_publishdate is null then '0000.00.0'
+  	else to_char(pcs_publishdate,'YYYY')||'.'||pmc_package||'.'||pcs_contractor_name 
+  end as tt_thau,
   CASE
     WHEN LENGTH(pmc_tenbietduoc)>0
     THEN pmc_tenbietduoc
@@ -1531,8 +1546,11 @@ SELECT
     ELSE SUM(ROUND(hpol_issueqty *pmc_unitprice, 2))
   END            AS thanhtien,
   sd_insuranceid AS deptid,
-  (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor)
-  ) AS bacsychidinh,
+  case
+  	when (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor)) is null then '('||trim(hpo_doctor)||')' 
+  	when trim((SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor)))='' then '('||trim(hpo_doctor)||')'
+  	else (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor))
+  end AS bacsychidinh,
   CASE
     WHEN hd_suggestion <>'A'
     THEN hd_icd

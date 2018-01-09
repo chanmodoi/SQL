@@ -114,7 +114,11 @@ CREATE OR REPLACE VIEW hmsv_fee_bh AS
             pcms_order_line.hfe_request,
             'N'::character varying(1) AS hfe_hastranfer,
             pcms_order.pcmso_performdate AS hfe_pdate,
-            pcms_order.pcmso_practitioner AS hfe_doctor,
+		    CASE
+		        WHEN trim(pcms_order.pcmso_practitioner::text) <> ''::text AND pcms_order.pcmso_practitioner IS NOT NULL THEN pcms_order.pcmso_practitioner
+		        WHEN trim(pcms_order.pcmso_doctor::text) <> ''::text AND pcms_order.pcmso_doctor IS NOT NULL THEN pcms_order.pcmso_doctor		        		        
+		        ELSE pcms_order.pcmso_createdby
+		    END AS hfe_doctor,
             0 AS hfe_typexe,
                 CASE
                     WHEN substr(pcms_order_line.hfe_group::text, 1, 2) <> 'B1'::text THEN pcms_order_line.pcmsol_note
@@ -154,7 +158,11 @@ CREATE OR REPLACE VIEW hmsv_fee_bh AS
             hms_operation.hfe_request,
             hms_feelist.hfl_hastranfer AS hfe_hastranfer,
             hms_operation.ho_performdate AS hfe_pdate,
-            hms_operation.ho_doctor,
+            case 
+            	when trim(hms_operation.ho_practitioner::text)<>'' and hms_operation.ho_practitioner is not null then hms_operation.ho_practitioner
+            	when trim(hms_operation.ho_doctor::text)<>'' and hms_operation.ho_doctor is not null then hms_operation.ho_doctor
+            	else hms_operation.ho_createdby            	
+            end as hfe_doctor,
             0 AS hfe_typexe,
             ''::character varying AS "varchar",
             hms_operation.hfe_ratio
@@ -283,11 +291,13 @@ UNION ALL
     hms_pharmacyorder_line.hfe_request,
     'N'::character varying(1) AS hfe_hastranfer,
     hms_pharmacyorder.hpo_orderdate AS hfe_pdate,
-        CASE
-            WHEN hms_pharmacyorder.hpo_doctor::text <> ''::text AND hms_pharmacyorder.hpo_doctor IS NOT NULL THEN hms_pharmacyorder.hpo_doctor
-            WHEN pms_stocktransfer.pmst_senderby::text <> ''::text AND pms_stocktransfer.pmst_senderby IS NOT NULL THEN pms_stocktransfer.pmst_senderby
-            ELSE ''::character varying(15)
-        END AS hfe_doctor,
+    CASE
+        WHEN btrim(hms_pharmacyorder.hpo_doctor::text) <> ''::text AND hms_pharmacyorder.hpo_doctor IS NOT NULL THEN hms_pharmacyorder.hpo_doctor
+        WHEN btrim(pms_stocktransfer.pmst_senderby::text) <> ''::text AND pms_stocktransfer.pmst_senderby IS NOT NULL THEN pms_stocktransfer.pmst_senderby
+        WHEN btrim(hms_pharmacyorder.hpo_issuer::text) <> ''::text AND hms_pharmacyorder.hpo_issuer IS NOT NULL THEN hms_pharmacyorder.hpo_issuer
+        WHEN btrim(hms_pharmacyorder.hpo_createdby::text) <> ''::text AND hms_pharmacyorder.hpo_createdby IS NOT NULL THEN hms_pharmacyorder.hpo_createdby
+        ELSE ''::character varying(15)
+    END AS hfe_doctor,
     pms_items.pmi_insuranceid AS hfe_regcode,
     1 AS hfe_ratio,
     0 AS hfe_unpaidqty
