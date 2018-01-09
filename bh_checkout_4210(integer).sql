@@ -751,6 +751,10 @@ tmpInt := 0;
  v_benhkem= tmpRec.ma_benhkhac;
  t_ly_do_vao_vien := tmpRec.ma_lydo_vvien;
  v_icd= tmpRec.ma_benh;
+
+ tmp_tong_chi=tmpRec.t_tongchi;
+ tmp_bntt=tmpRec.t_bntt;
+
   IF(v_insline ='Y' AND tmpRec.t_tongchi < 195000) THEN
     tmpPercent:= v_insoffline;
   END IF;
@@ -941,12 +945,7 @@ SELECT
  coalesce(pcs_contractor_name,'')||';'||coalesce(pmc_package,'')||';'||coalesce(pmc_group,'') end as tt_thau,
   case when hfe_discount >0 then 1 else 2 end as pham_vi,
   round(SUM(round(hpol_issueqty,2)),2) AS qty,
-  CASE
-    WHEN substring(hfe_group,1,2) =('A2')
-    OR pmsi_contractlist_uid      =0
-    THEN hfe_insprice
-    ELSE pmc_unitprice
-  END AS price,
+  hfe_insprice  AS price,
   CASE
     WHEN pmi_insdisrate >0
     THEN pmi_insdisrate
@@ -957,9 +956,9 @@ SELECT
     WHEN substring(hfe_group,1,2) =('A2')
     OR pmsi_contractlist_uid   =0
     THEN SUM(ROUND(hpol_issueqty*hfe_insprice, 2))
-    ELSE SUM(ROUND(round(hpol_issueqty,2) *pmc_unitprice, 2))
+    ELSE SUM(ROUND(round(hpol_issueqty,2) *hfe_insprice, 2))
   END            AS amout,
-  hms_pharmacyorder_line.hfe_disrate as muc_huong,
+  round(SUM(round(hms_pharmacyorder_line.hfe_inspaid,2)),2)*100/(round(SUM(round(hpol_issueqty,2)),2)*hfe_insprice) as muc_huong,
   sd_insuranceid AS deptid, 
   case
   	when (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor)) is null then '('||trim(hpo_doctor)||')' 
@@ -981,8 +980,8 @@ SELECT
     THEN ROUND(SUM ((round(hpol_issueqty,2) *pmc_unitprice*(100-hms_pharmacyorder_line.hfe_disrate)/100)),2)
     ELSE 0
   END AS t_bntt,
-  ROUND(hpol_issueqty*pmc_unitprice*hms_pharmacyorder_line.hfe_disrate/100,2) as t_bhtt,
-  ROUND(hpol_issueqty*pmc_unitprice*(100-hms_pharmacyorder_line.hfe_disrate)/100,2) as t_bncct,
+  round(SUM(round(hms_pharmacyorder_line.hfe_inspaid,2)),2) as t_bhtt,
+  SUM(ROUND(round(hpol_issueqty,2) *hfe_insprice, 2))-round(SUM(round(hms_pharmacyorder_line.hfe_inspaid,2)),2) as t_bncct,
   CASE
     WHEN hpol_usage='' OR hpol_usage IS NULL THEN 'Theo chỉ định của bác sỹ'
     ELSE hpol_usage
@@ -1040,8 +1039,7 @@ GROUP BY hpo_docno,
   pbl_name,
   pmi_name,
   pmsi_contractlist_uid,pmc_quyetdinh,pmc_package,pmc_group,hfe_discount,pcs_contractor_id,
-  hms_pharmacyorder_line.hfe_disrate,
-  hpol_issueqty
+  hms_pharmacyorder_line.hfe_disrate
 ORDER BY orderdate,
   hpo_deptid,
   ma_nhom,
@@ -1174,15 +1172,16 @@ SELECT
   tbl1.hfe_insprice AS dongia,
   NULL as tt_thau,
   CASE
-    WHEN hfe_type='D'
-    THEN 100
+    WHEN hfe_type='D' THEN 100
+    when CAST(ss_desc AS INTEGER)=0 then 100
     ELSE CAST(ss_desc AS INTEGER)
   END                   AS tyle_tt,  
   ROUND(
   	(case when tbl1.hfe_unpaidqty >0 then  tbl1.hfe_qty - tbl1.hfe_unpaidqty else tbl1.hfe_qty END)*
   	tbl1.hfe_insprice , 2) AS thanhtien,
   0 as t_trantt,
-  tbl1.hfe_disrate as muc_huong,
+  SUM(tbl1.hfe_discount)*100/(SUM((tbl1.hfe_qty - tbl1.hfe_unpaidqty)*tbl1.hfe_insprice)*(case WHEN hfe_type='D' THEN 100 when CAST(ss_desc AS INTEGER)=0 then 100 ELSE CAST(ss_desc AS INTEGER)END)/100) 
+  as muc_huong,
   sd_insuranceid             AS deptid,
   case
   	when (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hfe_doctor)) is null then '('||trim(hfe_doctor)||')' 
@@ -1213,8 +1212,8 @@ SELECT
     ELSE hfl_feeid
   END                                       AS ma_dich_vu_cs,
   NULL                                      AS ma_vat_tu_cs,
- ROUND((tbl1.hfe_inspaid -tbl1.hfe_discount),2) AS t_bncct,
- ROUND(tbl1.hfe_discount,2)               AS t_bhtt,
+ ROUND(SUM(tbl1.hfe_inspaid -tbl1.hfe_discount),2) AS t_bncct,
+ ROUND(SUM(tbl1.hfe_discount),2)               AS t_bhtt,
  0 as t_bntt,
  CASE WHEN tbl1.hfe_type='B' and tbl1.hfe_hastranfer='D' then hms_get_bedid('D', docno,tbl1.hfe_deptid,tbl1.hfe_idx)
  when tbl1.hfe_type='B' and tbl1.hfe_hastranfer <>'D' then hms_get_bedid('B', docno,tbl1.hfe_deptid,tbl1.hfe_idx)
