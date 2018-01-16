@@ -485,7 +485,7 @@ tmpInt := 0;
       ELSE hms_getaddress(hp_provid, hp_distid, hp_villid)
     END AS dia_chi,
     CASE
-	WHEN hd_hasxcard='Y'  
+	WHEN hd_hasxcard='Y' and  hms_card2.hc_cardno is not null
 	THEN  SUBSTR(hd_cardno,1,15)||';'||SUBSTR(hms_card2.hc_cardno,1,15)
       ELSE  SUBSTR(hd_cardno,1,15)
     END                            AS ma_the,
@@ -494,12 +494,12 @@ tmpInt := 0;
 	then SUBSTR(hms_card.hc_cardno,16,5)||';'||SUBSTR(hms_card2.hc_cardno,16,5)
 	else SUBSTR(hms_card.hc_cardno,16,5)    END AS ma_dkbd,
     CASE 
-	when hd_hasxcard='Y' 
+	when hd_hasxcard='Y' and  hms_card2.hc_cardno is not null
 	then TO_CHAR(hms_card.hc_regdate,'YYYYMMDD')||';'||TO_CHAR(hms_card2.hc_regdate,'YYYYMMDD')
 	ELSE TO_CHAR(hms_card.hc_regdate,'YYYYMMDD') 
 	END AS gt_the_tu,
     CASE 
-	when hd_hasxcard='Y' 
+	when hd_hasxcard='Y' and  hms_card2.hc_cardno is not null
 	THEN TO_CHAR(hms_card.hc_expdate,'YYYYMMDD')||';'||TO_CHAR(hms_card2.hc_expdate,'YYYYMMDD')
 	ELSE TO_CHAR(hms_card.hc_expdate,'YYYYMMDD') 
 	END AS gt_the_den,
@@ -952,13 +952,10 @@ SELECT
 	WHEN hfe_discount=0 THEN 0
     ELSE 100
   END AS tyle_tt,
-  CASE
-    WHEN substring(hfe_group,1,2) =('A2')
-    OR pmsi_contractlist_uid   =0
-    THEN SUM(ROUND(hpol_issueqty*hfe_insprice, 2))
-    ELSE SUM(ROUND(round(hpol_issueqty,2) *hfe_insprice, 2))
-  END            AS amout,
-  round(SUM(round(hms_pharmacyorder_line.hfe_inspaid,2)),2)*100/(round(SUM(round(hpol_issueqty,2)),2)*hfe_insprice) as muc_huong,
+  0 AS amout,
+  round(SUM(round(hms_pharmacyorder_line.hfe_discount,2)),2)*100*100/
+  	(round(SUM(round(hpol_issueqty,2)),2)*hfe_insprice
+  	*(CASE WHEN pmi_insdisrate >0 THEN pmi_insdisrate WHEN hfe_discount=0 THEN 0 ELSE 100 end))as muc_huong,
   sd_insuranceid AS deptid, 
   case
   	when (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor)) is null then '('||trim(hpo_doctor)||')' 
@@ -975,13 +972,9 @@ SELECT
   hfe_insprice                             AS don_gia_bv,
   0                                        AS t_nguonkhac,
   hpol_itemid                              AS ma_thuoc_cs,
-  CASE
-    WHEN pmi_insdisrate >0 
-    THEN ROUND(SUM ((round(hpol_issueqty,2) *pmc_unitprice*(100-hms_pharmacyorder_line.hfe_disrate)/100)),2)
-    ELSE 0
-  END AS t_bntt,
+  0 as t_bntt,
   round(SUM(round(hms_pharmacyorder_line.hfe_inspaid,2)),2) as t_bhtt,
-  SUM(ROUND(round(hpol_issueqty,2) *hfe_insprice, 2))-round(SUM(round(hms_pharmacyorder_line.hfe_inspaid,2)),2) as t_bncct,
+  0 as t_bncct,
   CASE
     WHEN hpol_usage='' OR hpol_usage IS NULL THEN 'Theo chỉ định của bác sỹ'
     ELSE hpol_usage
@@ -1094,7 +1087,7 @@ INTO bh_bang_ctthuoc
     tmpRec.qty,
     tmpRec.price,
     tmpRec.tyle_tt,
-    tmpRec.amout,
+    tmpRec.qty*tmpRec.price*tmpRec.tyle_tt/100,   --So luong
     tmpRec.deptid,
     tmpRec.doctor,
     tmpRec.mainicd,
@@ -1104,8 +1097,8 @@ INTO bh_bang_ctthuoc
     tmpRec.don_gia_bv,
     tmpRec.ma_thuoc_cs,
     tmpRec.t_bntt,
-    tmpRec.t_bhtt,
-    tmpRec.t_bncct,
+    tmpRec.qty*tmpRec.price*tmpRec.tyle_tt*tmpRec.muc_huong/(100*100),   --t_bhtt
+    tmpRec.qty*tmpRec.price*tmpRec.tyle_tt*(100-tmpRec.muc_huong)/(100*100),   --t_bncct,
     tmpRec.lieu_dung,
     tmpRec.ma_pttt,
     tmpRec.tt_thau,
@@ -1175,10 +1168,8 @@ SELECT
     WHEN hfe_type='D' THEN 100
     when CAST(ss_desc AS INTEGER)=0 then 100
     ELSE CAST(ss_desc AS INTEGER)
-  END                   AS tyle_tt,  
-  ROUND(
-  	(case when tbl1.hfe_unpaidqty >0 then  tbl1.hfe_qty - tbl1.hfe_unpaidqty else tbl1.hfe_qty END)*
-  	tbl1.hfe_insprice , 2) AS thanhtien,
+  END AS tyle_tt,   	
+  0 AS thanhtien,
   0 as t_trantt,
   SUM(tbl1.hfe_discount)*100/(SUM((tbl1.hfe_qty - tbl1.hfe_unpaidqty)*tbl1.hfe_insprice)*(case WHEN hfe_type='D' THEN 100 when CAST(ss_desc AS INTEGER)=0 then 100 ELSE CAST(ss_desc AS INTEGER)END)/100) 
   as muc_huong,
@@ -1420,12 +1411,7 @@ INTO bh_bang_ctdv
     tmpRec.t_trantt );
   END LOOP;
 ELSE
-	--H	
-  if((tmpRec.manhom='15' and (tmpRec.tyle_tt=50 or tmpRec.tyle_tt=30))
-			or (tmpRec.manhom='13' and (tmpRec.tyle_tt=30 or tmpRec.tyle_tt=10))
-			or (tmpRec.manhom='8' and (tmpRec.tyle_tt=50 or tmpRec.tyle_tt=80))) then
-				tmpRec.thanhtien:=tmpRec.thanhtien*tmpRec.tyle_tt/100;
-  end if;
+
 
   tmpInt := tmpInt+1;
   INSERT
@@ -1474,7 +1460,7 @@ ELSE
     tmpRec.soluong,
     tmpRec.dongia,
     tmpRec.tyle_tt,
-    tmpRec.thanhtien,
+    tmpRec.soluong*tmpRec.dongia*tmpRec.tyle_tt/100,
     tmpRec.deptid,
     tmpRec.bacsychidinh,
     tmpRec.MA_BENH,
@@ -1524,11 +1510,7 @@ SELECT
   NULL as tendv,
   pmi_unit          AS donvi,
   SUM(hpol_issueqty) AS soluong,
-  CASE
-    WHEN pmsi_contractlist_uid=0
-    THEN hfe_insprice
-    ELSE pmc_unitprice
-  END AS dongia,
+  hfe_insprice AS dongia,
   CASE
     WHEN pmi_insdisrate >0
     THEN pmi_insdisrate
@@ -1536,14 +1518,9 @@ SELECT
   END AS tyle_tt,
   0 as t_trantt,
   case when hfe_discount >0 then 1 else 2 end as pham_vi,
-  tmpPercent  as muc_huong,
-  CASE
-    WHEN pmsi_contractlist_uid=0
-    THEN SUM(ROUND(hpol_issueqty *hfe_insprice, 2))
-    WHEN pmi_insdisrate >0
-    THEN SUM(ROUND(hpol_issueqty *pmc_unitprice*pmi_insdisrate/100, 2))
-    ELSE SUM(ROUND(hpol_issueqty *pmc_unitprice, 2))
-  END            AS thanhtien,
+  SUM(hms_pharmacyorder_line.hfe_discount)*100*100/(SUM(hpol_issueqty)*hfe_insprice
+  *(CASE WHEN pmi_insdisrate >0 THEN pmi_insdisrate ELSE 100 END))  as muc_huong,
+  0  AS thanhtien,
   sd_insuranceid AS deptid,
   case
   	when (SELECT su_certificate FROM sys_user WHERE su_userid =trim(hpo_doctor)) is null then '('||trim(hpo_doctor)||')' 
@@ -1562,13 +1539,7 @@ SELECT
   0                                        AS t_nguonkhac,
   NULL                                     AS ma_dich_vu_cs,
   hpol_itemid                              AS ma_vat_tu_cs,
-  CASE
-    WHEN pmsi_contractlist_uid=0
-    THEN ROUND(SUM(hpol_issueqty * hfe_insprice*(100-tmpPercent)/100),2)
-    WHEN pmi_insdisrate >0
-    THEN ROUND(SUM ((hpol_issueqty*pmc_unitprice*pmi_insdisrate/100) * (100-tmpPercent)/100),2)
-    ELSE ROUND(SUM(hpol_issueqty  *pmc_unitprice*(100-tmpPercent)/100),2)
-  END AS t_bncct ,
+  0 AS t_bncct ,
   0 as t_bntt,
   CASE
     WHEN pmsi_contractlist_uid=0
@@ -1680,7 +1651,7 @@ INTO bh_bang_ctdv
     tmpRec.soluong,
     tmpRec.dongia,
     tmpRec.tyle_tt,
-    tmpRec.thanhtien,
+    tmpRec.soluong*tmpRec.dongia*tmpRec.tyle_tt/100,
     tmpRec.deptid,
     tmpRec.bacsychidinh,
     tmpRec.MA_BENH,
@@ -1693,10 +1664,10 @@ INTO bh_bang_ctdv
     tmpRec.ma_dich_vu_cs,
     tmpRec.ma_vat_tu_cs,
     tmpRec.t_bntt,
-    tmpRec.t_bhtt,
+    tmpRec.soluong*tmpRec.dongia*tmpRec.tyle_tt*tmpRec.muc_huong/(100*100),
     tmpRec.ma_pttt,
     NULL,
-    tmpRec.t_bncct,
+    tmpRec.soluong*tmpRec.dongia*tmpRec.tyle_tt*(100-tmpRec.muc_huong)/(100*100),
     tmpRec.muc_huong,
     tmpRec.goi_vtyt,
     tmpRec.pham_vi,
